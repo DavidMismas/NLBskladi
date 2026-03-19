@@ -10,6 +10,9 @@ final class InvestmentViewModel: ObservableObject {
     @Published private(set) var investment: UserInvestment
 
     @Published var newContributionAmountText: String
+    @Published var newContributionTransactionCostText: String
+    @Published var newContributionPurchaseNAVText: String
+    @Published var newContributionUnitsText: String
     @Published var newContributionDate: Date
 
     private let service: FundDataService
@@ -27,6 +30,9 @@ final class InvestmentViewModel: ObservableObject {
         investment = storage.loadInvestment()
         fundSnapshot = storage.loadSnapshot()
         newContributionAmountText = ""
+        newContributionTransactionCostText = ""
+        newContributionPurchaseNAVText = ""
+        newContributionUnitsText = ""
         newContributionDate = defaultDate
 
         recalculate()
@@ -82,6 +88,18 @@ final class InvestmentViewModel: ObservableObject {
         newContributionAmountText = DecimalParser.sanitizedInput(newValue)
     }
 
+    func updateNewContributionTransactionCost(_ newValue: String) {
+        newContributionTransactionCostText = DecimalParser.sanitizedInput(newValue)
+    }
+
+    func updateNewContributionPurchaseNAV(_ newValue: String) {
+        newContributionPurchaseNAVText = DecimalParser.sanitizedInput(newValue)
+    }
+
+    func updateNewContributionUnits(_ newValue: String) {
+        newContributionUnitsText = DecimalParser.sanitizedInput(newValue)
+    }
+
     func updateNewContributionDate(_ newValue: Date) {
         newContributionDate = Calendar(identifier: .gregorian).startOfDay(for: newValue)
     }
@@ -92,14 +110,39 @@ final class InvestmentViewModel: ObservableObject {
             return
         }
 
+        let transactionCost = DecimalParser.parse(newContributionTransactionCostText)
+        let purchaseNAV = DecimalParser.parse(newContributionPurchaseNAVText)
+        let unitsOwned = DecimalParser.parse(newContributionUnitsText)
+
+        if let transactionCost, transactionCost < .zero {
+            calculationMessage = FundServiceError.invalidUserInput.errorDescription
+            return
+        }
+
+        if let purchaseNAV, purchaseNAV <= .zero {
+            calculationMessage = FundServiceError.invalidUserInput.errorDescription
+            return
+        }
+
+        if let unitsOwned, unitsOwned <= .zero {
+            calculationMessage = FundServiceError.invalidUserInput.errorDescription
+            return
+        }
+
         investment.contributions.append(
             InvestmentContribution(
                 investedAmount: amount,
+                transactionCost: transactionCost,
+                purchaseNAV: purchaseNAV,
+                unitsOwned: unitsOwned,
                 purchaseDate: newContributionDate
             )
         )
         investment = UserInvestment(contributions: investment.contributions)
         newContributionAmountText = ""
+        newContributionTransactionCostText = ""
+        newContributionPurchaseNAVText = ""
+        newContributionUnitsText = ""
         storage.saveInvestment(investment)
         recalculate()
     }
@@ -131,7 +174,10 @@ final class InvestmentViewModel: ObservableObject {
             guard let self else { return }
 
             do {
-                let purchaseNAVs = try await service.fetchPurchaseNAVs(for: contributions.map(\.purchaseDate))
+                let datesRequiringHistory = contributions
+                    .filter { $0.unitsOwned == nil && $0.purchaseNAV == nil }
+                    .map(\.purchaseDate)
+                let purchaseNAVs = try await service.fetchPurchaseNAVs(for: datesRequiringHistory)
                 try Task.checkCancellation()
 
                 let result = try InvestmentCalculator.calculate(
@@ -162,9 +208,9 @@ extension InvestmentViewModel {
     static let previewLoaded: InvestmentViewModel = {
         let storage = PreviewInvestmentStorage(
             investment: UserInvestment(contributions: [
-                InvestmentContribution(investedAmount: 2_500, purchaseDate: AppFormatters.apiDateFormatter.date(from: "2025-06-16")!),
-                InvestmentContribution(investedAmount: 300, purchaseDate: AppFormatters.apiDateFormatter.date(from: "2025-07-16")!),
-                InvestmentContribution(investedAmount: 300, purchaseDate: AppFormatters.apiDateFormatter.date(from: "2025-08-16")!)
+                InvestmentContribution(investedAmount: 2500, transactionCost: 50, purchaseNAV: Decimal(string: "28.40"), unitsOwned: Decimal(string: "86.2676056"), purchaseDate: AppFormatters.apiDateFormatter.date(from: "2025-06-16")!),
+                InvestmentContribution(investedAmount: 300, transactionCost: Decimal(string: "4.50"), purchaseNAV: Decimal(string: "30.25"), unitsOwned: Decimal(string: "9.768595"), purchaseDate: AppFormatters.apiDateFormatter.date(from: "2025-07-16")!),
+                InvestmentContribution(investedAmount: 300, transactionCost: Decimal(string: "4.50"), purchaseNAV: Decimal(string: "31.10"), unitsOwned: Decimal(string: "9.5016077"), purchaseDate: AppFormatters.apiDateFormatter.date(from: "2025-08-16")!)
             ]),
             snapshot: PreviewData.snapshot
         )

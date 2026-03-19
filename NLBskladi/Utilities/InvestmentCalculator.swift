@@ -22,19 +22,48 @@ enum InvestmentCalculator {
                 throw FundServiceError.invalidUserInput
             }
 
+            if let unitsOwned = contribution.unitsOwned {
+                guard unitsOwned > .zero else {
+                    throw FundServiceError.invalidUserInput
+                }
+
+                totalUnits += unitsOwned
+                continue
+            }
+
+            let netAmount = contribution.netInvestedAmount
+            guard netAmount > .zero else {
+                throw FundServiceError.invalidUserInput
+            }
+
+            if let purchaseNAV = contribution.purchaseNAV {
+                guard purchaseNAV > .zero else {
+                    throw FundServiceError.invalidUserInput
+                }
+
+                totalUnits += netAmount / purchaseNAV
+                continue
+            }
+
             let normalizedDate = calendar.startOfDay(for: contribution.purchaseDate)
             guard let purchaseNAV = purchaseNAVs[normalizedDate], purchaseNAV > .zero else {
                 throw FundServiceError.historicalDataUnavailable
             }
 
-            totalUnits += contribution.investedAmount / purchaseNAV
+            totalUnits += netAmount / purchaseNAV
         }
 
         let totalInvestedAmount = investment.totalInvestedAmount
         let currentValue = totalUnits * snapshot.navValue
         let profitLoss = currentValue - totalInvestedAmount
         let profitLossPercent = totalInvestedAmount == .zero ? nil : (profitLoss / totalInvestedAmount) * 100
-        let description = "Izračun temelji na \(investment.contributions.count) vplačilih in javni zgodovini VEP sklada."
+        let exactContributions = investment.contributions.filter { $0.unitsOwned != nil }.count
+        let description: String
+        if exactContributions == investment.contributions.count {
+            description = "Izračun temelji na dejanskem številu enot za vseh \(investment.contributions.count) vplačil."
+        } else {
+            description = "Izračun temelji na \(exactContributions) natančnih vplačilih in po potrebi na neto znesku ter VEP ob nakupu oziroma javni zgodovini VEP."
+        }
 
         return InvestmentResult(
             currentValue: currentValue,

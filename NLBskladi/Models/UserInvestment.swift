@@ -3,16 +3,29 @@ import Foundation
 struct InvestmentContribution: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var investedAmount: Decimal
+    var transactionCost: Decimal?
+    var purchaseNAV: Decimal?
+    var unitsOwned: Decimal?
     var purchaseDate: Date
 
     init(
         id: UUID = UUID(),
         investedAmount: Decimal,
+        transactionCost: Decimal? = nil,
+        purchaseNAV: Decimal? = nil,
+        unitsOwned: Decimal? = nil,
         purchaseDate: Date
     ) {
         self.id = id
         self.investedAmount = investedAmount
+        self.transactionCost = transactionCost
+        self.purchaseNAV = purchaseNAV
+        self.unitsOwned = unitsOwned
         self.purchaseDate = Calendar(identifier: .gregorian).startOfDay(for: purchaseDate)
+    }
+
+    var netInvestedAmount: Decimal {
+        investedAmount - (transactionCost ?? .zero)
     }
 }
 
@@ -33,6 +46,9 @@ struct UserInvestment: Codable, Equatable, Sendable {
         case contributions
         case investedAmount
         case purchaseDate
+        case transactionCost
+        case purchaseNAV
+        case unitsOwned
     }
 
     init(from decoder: Decoder) throws {
@@ -45,10 +61,19 @@ struct UserInvestment: Codable, Equatable, Sendable {
 
         let legacyAmount = try container.decodeIfPresent(Decimal.self, forKey: .investedAmount) ?? .zero
         let legacyDate = try container.decodeIfPresent(Date.self, forKey: .purchaseDate)
+        let legacyCost = try container.decodeIfPresent(Decimal.self, forKey: .transactionCost)
+        let legacyPurchaseNAV = try container.decodeIfPresent(Decimal.self, forKey: .purchaseNAV)
+        let legacyUnits = try container.decodeIfPresent(Decimal.self, forKey: .unitsOwned)
 
         if legacyAmount > .zero, let legacyDate {
             self.init(contributions: [
-                InvestmentContribution(investedAmount: legacyAmount, purchaseDate: legacyDate)
+                InvestmentContribution(
+                    investedAmount: legacyAmount,
+                    transactionCost: legacyCost,
+                    purchaseNAV: legacyPurchaseNAV,
+                    unitsOwned: legacyUnits,
+                    purchaseDate: legacyDate
+                )
             ])
         } else {
             self.init()

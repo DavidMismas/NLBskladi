@@ -6,6 +6,9 @@ struct DashboardView: View {
 
     private enum InputField: Hashable {
         case contributionAmount
+        case transactionCost
+        case purchaseNAV
+        case units
     }
 
     var body: some View {
@@ -13,8 +16,8 @@ struct DashboardView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     fundCard
-                    investmentCard
                     resultCard
+                    investmentCard
                 }
                 .padding(20)
             }
@@ -111,6 +114,36 @@ struct DashboardView: View {
                     )
                 )
 
+                textField(
+                    title: "Stroški transakcije",
+                    placeholder: "Na primer 1,96",
+                    field: .transactionCost,
+                    text: Binding(
+                        get: { viewModel.newContributionTransactionCostText },
+                        set: viewModel.updateNewContributionTransactionCost
+                    )
+                )
+
+                textField(
+                    title: "Vrednost enote ob nakupu",
+                    placeholder: "Na primer 36,9419",
+                    field: .purchaseNAV,
+                    text: Binding(
+                        get: { viewModel.newContributionPurchaseNAVText },
+                        set: viewModel.updateNewContributionPurchaseNAV
+                    )
+                )
+
+                textField(
+                    title: "Št. enot premoženja",
+                    placeholder: "Na primer 2,653897",
+                    field: .units,
+                    text: Binding(
+                        get: { viewModel.newContributionUnitsText },
+                        set: viewModel.updateNewContributionUnits
+                    )
+                )
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Datum vplačila")
                         .font(.subheadline.weight(.medium))
@@ -148,10 +181,12 @@ struct DashboardView: View {
                 valueRow("Skupaj vloženo", viewModel.totalInvestedAmountText)
                 valueRow("Število vplačil", "\(viewModel.contributions.count)")
 
+                Text("Za najbolj natančen izračun vnesite tudi strošek transakcije in št. enot premoženja. Če št. enot ne vnesete, app uporabi VEP ob nakupu oziroma javno zgodovino sklada.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
                 if viewModel.contributions.isEmpty {
-                    Text("Dodajte prvo mesečno vplačilo. Aplikacija bo nato vse preračunala iz javne zgodovine VEP.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    EmptyView()
                 } else {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(viewModel.contributions) { contribution in
@@ -168,6 +203,7 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 14) {
                 if let result = viewModel.calculationResult {
                     VStack(alignment: .leading, spacing: 12) {
+                        valueRow("Skupaj vplačano", viewModel.totalInvestedAmountText)
                         valueRow("Ocenjena vrednost", result.currentValue.map(AppFormatters.currencyString(from:)) ?? "Ni podatka")
                         valueRow("Razlika v EUR", result.profitLoss.map(AppFormatters.signedCurrencyString(from:)) ?? "Ni podatka")
                         valueRow("Donos", result.profitLossPercent.map(AppFormatters.signedPercentString(from:)) ?? "Ni podatka")
@@ -194,6 +230,21 @@ struct DashboardView: View {
                 Text(AppFormatters.dateString(from: contribution.purchaseDate))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                if let transactionCost = contribution.transactionCost {
+                    Text("Strošek: \(AppFormatters.currencyString(from: transactionCost))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let purchaseNAV = contribution.purchaseNAV {
+                    Text("VEP: \(DecimalParser.string(from: purchaseNAV))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if let unitsOwned = contribution.unitsOwned {
+                    Text("Enote: \(DecimalParser.string(from: unitsOwned))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer(minLength: 12)
